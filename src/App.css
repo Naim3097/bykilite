@@ -370,14 +370,14 @@ body {
   backdrop-filter: blur(20px);
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 24px;
+  border-radius: 20px;
   box-shadow: 
     0 8px 32px rgba(22, 143, 96, 0.25),
     0 1px 1px rgba(255, 255, 255, 0.5) inset,
     0 -1px 1px rgba(0, 0, 0, 0.05) inset;
-  padding: 3rem;
+  padding: 1.5rem;
   width: 100%;
-  max-width: 420px;
+  max-width: 322px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 10;
 }
@@ -435,7 +435,7 @@ body {
 
 /* Main logo styling */
 .main-logo {
-  width: 400px;
+  width: 200px;
   height: auto;
   max-width: 100%;
   display: block;
@@ -626,19 +626,19 @@ body {
 }
 
 /* Responsive design */
-@media (max-width: 768px) {
-  .premium-login-card {
+@media (max-width: 768px) {  .premium-login-card {
     margin: 1rem;
-    padding: 2rem 1.5rem;
-    border-radius: 20px;
+    padding: 1.25rem 1rem;
+    border-radius: 16px;
+    max-width: 299px;
   }
   
   .logo-placeholder {
-    width: 60px;
-    height: 60px;
+    width: 40px;
+    height: 40px;
   }
     .main-logo {
-    width: 300px;
+    width: 180px;
   }
   
   .welcome-title {
@@ -653,10 +653,11 @@ body {
 @media (max-width: 480px) {
   .premium-login-card {
     margin: 0.5rem;
-    padding: 1.5rem 1rem;
+    padding: 1rem 0.75rem;
+    max-width: 276px;
   }
     .main-logo {
-    width: 240px;
+    width: 160px;
   }
   
   .premium-input {
