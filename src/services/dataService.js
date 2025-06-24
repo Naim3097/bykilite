@@ -12,12 +12,55 @@ import {
   where,
   setDoc
 } from 'firebase/firestore';
-import { db } from '../config/firebaseConfig';
+import { db, auth } from '../config/firebaseConfig';
+
+// ============================================================================
+// 🔐 USER-SCOPED DATA HELPERS (Phase 1 Implementation)
+// ============================================================================
+
+/**
+ * Helper function to get current authenticated user ID
+ * @returns {string} The current user's UID
+ * @throws {Error} If user is not authenticated
+ */
+const getCurrentUserId = () => {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+  return user.uid;
+};
+
+/**
+ * Helper function to get user-scoped collection reference
+ * @param {string} collectionName - Name of the collection
+ * @returns {CollectionReference} User-scoped collection reference
+ */
+const getUserCollection = (collectionName) => {
+  const userId = getCurrentUserId();
+  return collection(db, 'users', userId, collectionName);
+};
+
+/**
+ * Helper function to get user-scoped document reference
+ * @param {string} collectionName - Name of the collection
+ * @param {string} docId - Document ID
+ * @returns {DocumentReference} User-scoped document reference
+ */
+const getUserDoc = (collectionName, docId) => {
+  const userId = getCurrentUserId();
+  return doc(db, 'users', userId, collectionName, docId);
+};
+
+// ============================================================================
+// 📦 PARTS OPERATIONS (User-Scoped)
+// ============================================================================
 
 // Parts operations
 export const getParts = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, 'parts'));
+    const userPartsCollection = getUserCollection('parts');
+    const querySnapshot = await getDocs(userPartsCollection);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -30,7 +73,7 @@ export const getParts = async () => {
 
 export const getPartById = async (id) => {
   try {
-    const docRef = doc(db, 'parts', id);
+    const docRef = getUserDoc('parts', id);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return { id: docSnap.id, ...docSnap.data() };
@@ -45,7 +88,8 @@ export const getPartById = async (id) => {
 
 export const createPart = async (partData) => {
   try {
-    const docRef = await addDoc(collection(db, 'parts'), {
+    const userPartsCollection = getUserCollection('parts');
+    const docRef = await addDoc(userPartsCollection, {
       ...partData,
       currentStock: partData.currentStock || 0
     });
@@ -58,7 +102,7 @@ export const createPart = async (partData) => {
 
 export const updatePart = async (id, partData) => {
   try {
-    const docRef = doc(db, 'parts', id);
+    const docRef = getUserDoc('parts', id);
     await updateDoc(docRef, partData);
   } catch (error) {
     console.error('Error updating part:', error);
@@ -68,17 +112,22 @@ export const updatePart = async (id, partData) => {
 
 export const deletePart = async (id) => {
   try {
-    await deleteDoc(doc(db, 'parts', id));
+    const docRef = getUserDoc('parts', id);
+    await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting part:', error);
     throw error;
   }
 };
 
-// Suppliers operations
+// ============================================================================
+// 🏪 SUPPLIERS OPERATIONS (User-Scoped)
+// ============================================================================
+
 export const getSuppliers = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, 'suppliers'));
+    const userSuppliersCollection = getUserCollection('suppliers');
+    const querySnapshot = await getDocs(userSuppliersCollection);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -91,7 +140,8 @@ export const getSuppliers = async () => {
 
 export const createSupplier = async (supplierData) => {
   try {
-    const docRef = await addDoc(collection(db, 'suppliers'), supplierData);
+    const userSuppliersCollection = getUserCollection('suppliers');
+    const docRef = await addDoc(userSuppliersCollection, supplierData);
     return docRef.id;
   } catch (error) {
     console.error('Error creating supplier:', error);
@@ -101,7 +151,7 @@ export const createSupplier = async (supplierData) => {
 
 export const updateSupplier = async (id, supplierData) => {
   try {
-    const docRef = doc(db, 'suppliers', id);
+    const docRef = getUserDoc('suppliers', id);
     await updateDoc(docRef, supplierData);
   } catch (error) {
     console.error('Error updating supplier:', error);
@@ -111,17 +161,22 @@ export const updateSupplier = async (id, supplierData) => {
 
 export const deleteSupplier = async (id) => {
   try {
-    await deleteDoc(doc(db, 'suppliers', id));
+    const docRef = getUserDoc('suppliers', id);
+    await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting supplier:', error);
     throw error;
   }
 };
 
-// Purchase Orders operations
+// ============================================================================
+// 📋 PURCHASE ORDERS OPERATIONS (User-Scoped)
+// ============================================================================
+
 export const getPurchaseOrders = async () => {
   try {
-    const q = query(collection(db, 'purchaseOrders'), orderBy('date', 'desc'));
+    const userPOCollection = getUserCollection('purchaseOrders');
+    const q = query(userPOCollection, orderBy('date', 'desc'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -137,16 +192,17 @@ export const createPurchaseOrder = async (poData) => {
   try {
     const batch = writeBatch(db);
     
-    // Add the purchase order
-    const poRef = doc(collection(db, 'purchaseOrders'));
+    // Add the purchase order to user scope
+    const userPOCollection = getUserCollection('purchaseOrders');
+    const poRef = doc(userPOCollection);
     batch.set(poRef, {
       ...poData,
       date: new Date().toISOString()
     });
     
-    // Update stock for each item
+    // Update stock for each item in user scope
     for (const item of poData.items) {
-      const partRef = doc(db, 'parts', item.partId);
+      const partRef = getUserDoc('parts', item.partId);
       const partDoc = await getDoc(partRef);
       if (partDoc.exists()) {
         const currentStock = partDoc.data().currentStock || 0;
@@ -164,11 +220,15 @@ export const createPurchaseOrder = async (poData) => {
   }
 };
 
-// Invoices operations - CENTRALIZED THROUGH WORK ORDERS ONLY
+// ============================================================================
+// 🧾 INVOICES OPERATIONS (User-Scoped)
+// ============================================================================
+
 // Get all invoices (includes both work-order and legacy invoices)
 export const getInvoices = async () => {
   try {
-    const q = query(collection(db, 'invoices'), orderBy('date', 'desc'));
+    const userInvoicesCollection = getUserCollection('invoices');
+    const q = query(userInvoicesCollection, orderBy('date', 'desc'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -183,8 +243,9 @@ export const getInvoices = async () => {
 // Get invoices by work order ID
 export const getInvoicesByWorkOrder = async (workOrderId) => {
   try {
+    const userInvoicesCollection = getUserCollection('invoices');
     const q = query(
-      collection(db, 'invoices'), 
+      userInvoicesCollection, 
       where('workOrderId', '==', workOrderId),
       orderBy('date', 'desc')
     );
@@ -206,17 +267,18 @@ export const createInvoice = async (invoiceData) => {
   try {
     const batch = writeBatch(db);
     
-    // Add the invoice
-    const invoiceRef = doc(collection(db, 'invoices'));
+    // Add the invoice to user scope
+    const userInvoicesCollection = getUserCollection('invoices');
+    const invoiceRef = doc(userInvoicesCollection);
     batch.set(invoiceRef, {
       ...invoiceData,
       date: new Date().toISOString(),
       source: 'manual' // Mark as manual for tracking
     });
     
-    // Update stock for each item
+    // Update stock for each item in user scope
     for (const item of invoiceData.items) {
-      const partRef = doc(db, 'parts', item.partId);
+      const partRef = getUserDoc('parts', item.partId);
       const partDoc = await getDoc(partRef);
       if (partDoc.exists()) {
         const currentStock = partDoc.data().currentStock || 0;
@@ -235,10 +297,13 @@ export const createInvoice = async (invoiceData) => {
   }
 };
 
-// Stock operations
+// ============================================================================
+// 📦 STOCK OPERATIONS (User-Scoped)
+// ============================================================================
+
 export const updateStock = async (partId, newStock) => {
   try {
-    const docRef = doc(db, 'parts', partId);
+    const docRef = getUserDoc('parts', partId);
     await updateDoc(docRef, {
       currentStock: newStock
     });
@@ -252,16 +317,17 @@ export const submitStockCount = async (stockCountData) => {
   try {
     const batch = writeBatch(db);
     
-    // Add the stock count record
-    const stockCountRef = doc(collection(db, 'stockCounts'));
+    // Add the stock count record to user scope
+    const userStockCountsCollection = getUserCollection('stockCounts');
+    const stockCountRef = doc(userStockCountsCollection);
     batch.set(stockCountRef, {
       ...stockCountData,
       date: new Date().toISOString()
     });
     
-    // Update stock for each counted item
+    // Update stock for each counted item in user scope
     for (const item of stockCountData.items) {
-      const partRef = doc(db, 'parts', item.partId);
+      const partRef = getUserDoc('parts', item.partId);
       batch.update(partRef, {
         currentStock: item.countedQty
       });
@@ -275,8 +341,12 @@ export const submitStockCount = async (stockCountData) => {
   }
 };
 
-// Dashboard data
-export const getDashboardData = async () => {  try {
+// ============================================================================
+// 📊 DASHBOARD DATA (User-Scoped)
+// ============================================================================
+
+export const getDashboardData = async () => {
+  try {
     const parts = await getParts();
     const lowStockParts = parts.filter(part => part.currentStock < 5);
     
@@ -305,12 +375,14 @@ export const getDashboardData = async () => {  try {
   }
 };
 
-// Work Order Management - New Collections
+// ============================================================================
+// 👥 CUSTOMERS OPERATIONS (User-Scoped)
+// ============================================================================
 
-// Customers operations
 export const getCustomers = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, 'customers'));
+    const userCustomersCollection = getUserCollection('customers');
+    const querySnapshot = await getDocs(userCustomersCollection);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -323,7 +395,8 @@ export const getCustomers = async () => {
 
 export const createCustomer = async (customerData) => {
   try {
-    const docRef = await addDoc(collection(db, 'customers'), customerData);
+    const userCustomersCollection = getUserCollection('customers');
+    const docRef = await addDoc(userCustomersCollection, customerData);
     return docRef.id;
   } catch (error) {
     console.error('Error creating customer:', error);
@@ -333,7 +406,7 @@ export const createCustomer = async (customerData) => {
 
 export const updateCustomer = async (id, customerData) => {
   try {
-    const docRef = doc(db, 'customers', id);
+    const docRef = getUserDoc('customers', id);
     await updateDoc(docRef, customerData);
   } catch (error) {
     console.error('Error updating customer:', error);
@@ -343,17 +416,22 @@ export const updateCustomer = async (id, customerData) => {
 
 export const deleteCustomer = async (id) => {
   try {
-    await deleteDoc(doc(db, 'customers', id));
+    const docRef = getUserDoc('customers', id);
+    await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting customer:', error);
     throw error;
   }
 };
 
-// Mechanics operations
+// ============================================================================
+// 🔧 MECHANICS OPERATIONS (User-Scoped)
+// ============================================================================
+
 export const getMechanics = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, 'mechanics'));
+    const userMechanicsCollection = getUserCollection('mechanics');
+    const querySnapshot = await getDocs(userMechanicsCollection);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -366,7 +444,8 @@ export const getMechanics = async () => {
 
 export const createMechanic = async (mechanicData) => {
   try {
-    const docRef = await addDoc(collection(db, 'mechanics'), mechanicData);
+    const userMechanicsCollection = getUserCollection('mechanics');
+    const docRef = await addDoc(userMechanicsCollection, mechanicData);
     return docRef.id;
   } catch (error) {
     console.error('Error creating mechanic:', error);
@@ -376,7 +455,7 @@ export const createMechanic = async (mechanicData) => {
 
 export const updateMechanic = async (id, mechanicData) => {
   try {
-    const docRef = doc(db, 'mechanics', id);
+    const docRef = getUserDoc('mechanics', id);
     await updateDoc(docRef, mechanicData);
   } catch (error) {
     console.error('Error updating mechanic:', error);
@@ -386,17 +465,22 @@ export const updateMechanic = async (id, mechanicData) => {
 
 export const deleteMechanic = async (id) => {
   try {
-    await deleteDoc(doc(db, 'mechanics', id));
+    const docRef = getUserDoc('mechanics', id);
+    await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting mechanic:', error);
     throw error;
   }
 };
 
-// Work Orders operations
+// ============================================================================
+// 🔨 WORK ORDERS OPERATIONS (User-Scoped)
+// ============================================================================
+
 export const getWorkOrders = async () => {
   try {
-    const q = query(collection(db, 'workOrders'), orderBy('createdAt', 'desc'));
+    const userWorkOrdersCollection = getUserCollection('workOrders');
+    const q = query(userWorkOrdersCollection, orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -410,7 +494,7 @@ export const getWorkOrders = async () => {
 
 export const getWorkOrderById = async (id) => {
   try {
-    const docRef = doc(db, 'workOrders', id);
+    const docRef = getUserDoc('workOrders', id);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return { id: docSnap.id, ...docSnap.data() };
@@ -428,8 +512,8 @@ export const createWorkOrder = async (workOrderData) => {
     // Generate a user-friendly work order ID
     const workOrderId = await generateWorkOrderId();
     
-    // Create the work order with a custom ID instead of auto-generated one
-    const docRef = doc(db, 'workOrders', workOrderId);
+    // Create the work order with a custom ID in user scope
+    const docRef = getUserDoc('workOrders', workOrderId);
     await setDoc(docRef, {
       ...workOrderData,
       id: workOrderId, // Store ID in the document for easier access
@@ -444,21 +528,26 @@ export const createWorkOrder = async (workOrderData) => {
   }
 };
 
-export const updateWorkOrderStatus = async (id, status) => {
+export const updateWorkOrderStatus = async (id, status, additionalData = {}) => {
   try {
-    const docRef = doc(db, 'workOrders', id);
-    await updateDoc(docRef, { status });
+    const docRef = getUserDoc('workOrders', id);
+    const updateData = { status, ...additionalData };
+    await updateDoc(docRef, updateData);
   } catch (error) {
     console.error('Error updating work order status:', error);
     throw error;
   }
 };
 
-// Order Items operations
+// ============================================================================
+// 📋 ORDER ITEMS OPERATIONS (User-Scoped)
+// ============================================================================
+
 export const getOrderItems = async (workOrderId) => {
   try {
+    const userOrderItemsCollection = getUserCollection('orderItems');
     const q = query(
-      collection(db, 'orderItems'), 
+      userOrderItemsCollection, 
       where('workOrderId', '==', workOrderId),
       orderBy('issuedAt', 'desc')
     );
@@ -477,8 +566,9 @@ export const issuePartToOrder = async (workOrderId, partId, qty) => {
   try {
     const batch = writeBatch(db);
     
-    // Add order item
-    const orderItemRef = doc(collection(db, 'orderItems'));
+    // Add order item to user scope
+    const userOrderItemsCollection = getUserCollection('orderItems');
+    const orderItemRef = doc(userOrderItemsCollection);
     batch.set(orderItemRef, {
       workOrderId,
       partId,
@@ -486,8 +576,8 @@ export const issuePartToOrder = async (workOrderId, partId, qty) => {
       issuedAt: new Date().toISOString()
     });
     
-    // Update part stock
-    const partRef = doc(db, 'parts', partId);
+    // Update part stock in user scope
+    const partRef = getUserDoc('parts', partId);
     const partDoc = await getDoc(partRef);
     if (partDoc.exists()) {
       const currentStock = partDoc.data().currentStock || 0;
@@ -507,26 +597,26 @@ export const issuePartToOrder = async (workOrderId, partId, qty) => {
 
 export const draftInvoiceForJob = async (workOrderId, laborCharges = []) => {
   try {
-    // Get work order details
+    // Get work order details from user scope
     const workOrder = await getWorkOrderById(workOrderId);
     if (!workOrder) {
       throw new Error('Work order not found');
     }
 
-    // Get customer details
-    const customerDoc = await getDoc(doc(db, 'customers', workOrder.customerId));
+    // Get customer details from user scope
+    const customerDoc = await getDoc(getUserDoc('customers', workOrder.customerId));
     if (!customerDoc.exists()) {
       throw new Error('Customer not found');
     }
     const customer = customerDoc.data();
 
-    // Get order items
+    // Get order items from user scope
     const orderItems = await getOrderItems(workOrderId);
     
     // Create invoice items from order items (parts)
     const invoiceItems = [];
     for (const item of orderItems) {
-      const partDoc = await getDoc(doc(db, 'parts', item.partId));
+      const partDoc = await getDoc(getUserDoc('parts', item.partId));
       if (partDoc.exists()) {
         const part = partDoc.data();
         invoiceItems.push({
@@ -552,7 +642,7 @@ export const draftInvoiceForJob = async (workOrderId, laborCharges = []) => {
       });
     }
 
-    // Create invoice
+    // Create invoice data
     const invoiceData = {
       customerName: customer.name,
       workOrderId: workOrderId,
@@ -563,7 +653,9 @@ export const draftInvoiceForJob = async (workOrderId, laborCharges = []) => {
       hasLaborCharges: laborCharges && laborCharges.length > 0
     };
 
-    const invoiceRef = await addDoc(collection(db, 'invoices'), invoiceData);
+    // Create invoice in user scope
+    const userInvoicesCollection = getUserCollection('invoices');
+    const invoiceRef = await addDoc(userInvoicesCollection, invoiceData);
     return invoiceRef.id;
   } catch (error) {
     console.error('Error drafting invoice for job:', error);
@@ -597,12 +689,15 @@ export const getWorkDashboardData = async () => {
   }
 };
 
-// PHASE 1 ENHANCEMENTS - Revenue Reporting & Filtering
+// ============================================================================
+// 📈 REVENUE REPORTING & FILTERING (User-Scoped)
+// ============================================================================
+
 export const getInvoicesByDateRange = async (startDate, endDate) => {
   try {
-    const invoicesRef = collection(db, 'invoices');
+    const userInvoicesCollection = getUserCollection('invoices');
     const q = query(
-      invoicesRef,
+      userInvoicesCollection,
       where('date', '>=', startDate),
       where('date', '<=', endDate),
       orderBy('date', 'desc')
@@ -731,9 +826,9 @@ export const exportRevenueReportCSV = (reportData, startDate, endDate) => {
 
 export const getCustomerWorkOrderHistory = async (customerId) => {
   try {
-    const workOrdersRef = collection(db, 'workOrders');
+    const userWorkOrdersCollection = getUserCollection('workOrders');
     const q = query(
-      workOrdersRef,
+      userWorkOrdersCollection,
       where('customerId', '==', customerId),
       orderBy('dateCreated', 'desc')
     );
@@ -764,7 +859,7 @@ export const getCustomerWorkOrderHistory = async (customerId) => {
 
 export const getFilteredInvoices = async (filters = {}) => {
   try {
-    let invoicesRef = collection(db, 'invoices');
+    const userInvoicesCollection = getUserCollection('invoices');
     let constraints = [];
     
     if (filters.startDate) {
@@ -782,7 +877,7 @@ export const getFilteredInvoices = async (filters = {}) => {
     // Add ordering
     constraints.push(orderBy('date', 'desc'));
     
-    const q = query(invoicesRef, ...constraints);
+    const q = query(userInvoicesCollection, ...constraints);
     const querySnapshot = await getDocs(q);
     
     let invoices = querySnapshot.docs.map(doc => ({
@@ -823,9 +918,14 @@ export const getFilteredInvoices = async (filters = {}) => {
 // PHASE 2 ENHANCEMENTS - Smart Job Scheduling (Calendar Integration)
 
 // Schedules operations
+// ============================================================================
+// 📅 SCHEDULES OPERATIONS (User-Scoped)
+// ============================================================================
+
 export const getSchedules = async () => {
   try {
-    const q = query(collection(db, 'schedules'), orderBy('scheduledDate', 'asc'), orderBy('startTime', 'asc'));
+    const userSchedulesCollection = getUserCollection('schedules');
+    const q = query(userSchedulesCollection, orderBy('scheduledDate', 'asc'), orderBy('startTime', 'asc'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -839,8 +939,9 @@ export const getSchedules = async () => {
 
 export const getSchedulesByDate = async (startDate, endDate) => {
   try {
+    const userSchedulesCollection = getUserCollection('schedules');
     const q = query(
-      collection(db, 'schedules'),
+      userSchedulesCollection,
       where('scheduledDate', '>=', startDate),
       where('scheduledDate', '<=', endDate),
       orderBy('scheduledDate', 'asc'),
@@ -859,8 +960,9 @@ export const getSchedulesByDate = async (startDate, endDate) => {
 
 export const getSchedulesByMechanic = async (mechanicId, startDate, endDate) => {
   try {
+    const userSchedulesCollection = getUserCollection('schedules');
     const q = query(
-      collection(db, 'schedules'),
+      userSchedulesCollection,
       where('mechanicId', '==', mechanicId),
       where('scheduledDate', '>=', startDate),
       where('scheduledDate', '<=', endDate),
@@ -907,7 +1009,9 @@ export const createSchedule = async (scheduleData) => {
       throw new Error('Time slot conflict detected. Mechanic is already scheduled during this time.');
     }
     
-    const docRef = await addDoc(collection(db, 'schedules'), {
+    // Create schedule in user scope
+    const userSchedulesCollection = getUserCollection('schedules');
+    const docRef = await addDoc(userSchedulesCollection, {
       ...scheduleData,
       status: 'scheduled',
       createdAt: new Date().toISOString(),
@@ -955,8 +1059,7 @@ export const updateSchedule = async (id, scheduleData) => {
         throw new Error('Time slot conflict detected. Mechanic is already scheduled during this time.');
       }
     }
-    
-    const docRef = doc(db, 'schedules', id);
+      const docRef = getUserDoc('schedules', id);
     await updateDoc(docRef, {
       ...scheduleData,
       updatedAt: new Date().toISOString()
@@ -969,7 +1072,7 @@ export const updateSchedule = async (id, scheduleData) => {
 
 export const getScheduleById = async (id) => {
   try {
-    const docRef = doc(db, 'schedules', id);
+    const docRef = getUserDoc('schedules', id);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       return { id: docSnap.id, ...docSnap.data() };
@@ -984,7 +1087,8 @@ export const getScheduleById = async (id) => {
 
 export const deleteSchedule = async (id) => {
   try {
-    await deleteDoc(doc(db, 'schedules', id));
+    const docRef = getUserDoc('schedules', id);
+    await deleteDoc(docRef);
   } catch (error) {
     console.error('Error deleting schedule:', error);
     throw error;
@@ -1148,7 +1252,8 @@ export const getTodaySchedules = async () => {
 // Expenses operations
 export const createExpense = async (expenseData) => {
   try {
-    const docRef = await addDoc(collection(db, 'expenses'), {
+    const userExpensesCollection = getUserCollection('expenses');
+    const docRef = await addDoc(userExpensesCollection, {
       ...expenseData,
       date: expenseData.date || new Date().toISOString(),
       createdAt: new Date().toISOString()
@@ -1160,9 +1265,14 @@ export const createExpense = async (expenseData) => {
   }
 };
 
+// ============================================================================
+// 💰 EXPENSES OPERATIONS (User-Scoped)
+// ============================================================================
+
 export const getExpenses = async () => {
   try {
-    const q = query(collection(db, 'expenses'), orderBy('date', 'desc'));
+    const userExpensesCollection = getUserCollection('expenses');
+    const q = query(userExpensesCollection, orderBy('date', 'desc'));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -1176,9 +1286,9 @@ export const getExpenses = async () => {
 
 export const getExpensesByDateRange = async (startDate, endDate) => {
   try {
-    const expensesRef = collection(db, 'expenses');
+    const userExpensesCollection = getUserCollection('expenses');
     const q = query(
-      expensesRef,
+      userExpensesCollection,
       where('date', '>=', startDate),
       where('date', '<=', endDate),
       orderBy('date', 'desc')
@@ -1198,7 +1308,7 @@ export const getExpensesByDateRange = async (startDate, endDate) => {
 // Auto-create expense when purchase order is completed
 export const createExpenseFromPurchaseOrder = async (purchaseOrderId) => {
   try {
-    const poDoc = await getDoc(doc(db, 'purchaseOrders', purchaseOrderId));
+    const poDoc = await getDoc(getUserDoc('purchaseOrders', purchaseOrderId));
     if (!poDoc.exists()) {
       throw new Error('Purchase order not found');
     }
@@ -1224,7 +1334,7 @@ export const createExpenseFromPurchaseOrder = async (purchaseOrderId) => {
 // Invoice payment tracking
 export const markInvoiceAsPaid = async (invoiceId, paidAmount, paymentMethod = 'cash') => {
   try {
-    const invoiceRef = doc(db, 'invoices', invoiceId);
+    const invoiceRef = getUserDoc('invoices', invoiceId);
     await updateDoc(invoiceRef, {
       paymentStatus: 'paid',
       paidAmount: paidAmount,
@@ -1239,9 +1349,9 @@ export const markInvoiceAsPaid = async (invoiceId, paidAmount, paymentMethod = '
 
 export const getUnpaidInvoices = async () => {
   try {
-    const invoicesRef = collection(db, 'invoices');
+    const userInvoicesCollection = getUserCollection('invoices');
     const q = query(
-      invoicesRef,
+      userInvoicesCollection,
       where('paymentStatus', 'in', ['pending', null]),
       orderBy('date', 'desc')
     );
@@ -1256,8 +1366,8 @@ export const getUnpaidInvoices = async () => {
     console.error('Error getting unpaid invoices:', error);
     // Fallback for invoices without paymentStatus field
     try {
-      const allInvoicesRef = collection(db, 'invoices');
-      const allQuery = query(allInvoicesRef, orderBy('date', 'desc'));
+      const userInvoicesCollection = getUserCollection('invoices');
+      const allQuery = query(userInvoicesCollection, orderBy('date', 'desc'));
       const allSnapshot = await getDocs(allQuery);
       return allSnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
@@ -1269,7 +1379,10 @@ export const getUnpaidInvoices = async () => {
   }
 };
 
-// Commission tracking
+// ============================================================================
+// 💼 COMMISSION TRACKING (User-Scoped)
+// ============================================================================
+
 export const addCommissionToWorkOrder = async (workOrderId, mechanicId, rate, amount) => {
   try {
     // Input validation
@@ -1277,7 +1390,7 @@ export const addCommissionToWorkOrder = async (workOrderId, mechanicId, rate, am
     if (!mechanicId) throw new Error('Mechanic ID is required');
     if (isNaN(amount) || amount <= 0) throw new Error('Commission amount must be greater than zero');
     
-    const workOrderRef = doc(db, 'workOrders', workOrderId);
+    const workOrderRef = getUserDoc('workOrders', workOrderId);
     const workOrderDoc = await getDoc(workOrderRef);
     
     if (!workOrderDoc.exists()) {
@@ -1331,7 +1444,7 @@ export const addCommissionToWorkOrder = async (workOrderId, mechanicId, rate, am
 
 export const markCommissionAsPaid = async (workOrderId, amount) => {
   try {
-    const workOrderRef = doc(db, 'workOrders', workOrderId);
+    const workOrderRef = getUserDoc('workOrders', workOrderId);
     const workOrderDoc = await getDoc(workOrderRef);
     
     if (workOrderDoc.exists()) {
@@ -1356,7 +1469,7 @@ export const updateCommissionStatus = async (workOrderId, isPaid, paymentMethod 
     // Input validation
     if (!workOrderId) throw new Error('Work order ID is required');
     
-    const workOrderRef = doc(db, 'workOrders', workOrderId);
+    const workOrderRef = getUserDoc('workOrders', workOrderId);
     const workOrderDoc = await getDoc(workOrderRef);
     
     if (!workOrderDoc.exists()) {
@@ -1416,7 +1529,7 @@ export const getUnpaidCommissions = async (options = {}) => {
   try {
     const { mechanicId = null, fromDate = null, toDate = null, limit = null } = options;
     
-    let workOrdersRef = collection(db, 'workOrders');
+    const userWorkOrdersCollection = getUserCollection('workOrders');
     
     // Build query with filters
     const queryFilters = [
@@ -1434,7 +1547,7 @@ export const getUnpaidCommissions = async (options = {}) => {
     
     // Apply the filters and order
     let q = query(
-      workOrdersRef,
+      userWorkOrdersCollection,
       ...queryFilters,
       orderBy('createdAt', 'desc')
     );
@@ -1593,7 +1706,7 @@ export const getFinancialOverview = async () => {
 // Labor charge management for invoices
 export const addLaborChargeToInvoice = async (invoiceId, laborCharge) => {
   try {
-    const invoiceRef = doc(db, 'invoices', invoiceId);
+    const invoiceRef = getUserDoc('invoices', invoiceId);
     const invoiceDoc = await getDoc(invoiceRef);
     
     if (!invoiceDoc.exists()) {
@@ -1630,7 +1743,7 @@ export const addLaborChargeToInvoice = async (invoiceId, laborCharge) => {
 
 export const updateLaborChargeInInvoice = async (invoiceId, laborId, updatedLaborCharge) => {
   try {
-    const invoiceRef = doc(db, 'invoices', invoiceId);
+    const invoiceRef = getUserDoc('invoices', invoiceId);
     const invoiceDoc = await getDoc(invoiceRef);
     
     if (!invoiceDoc.exists()) {
@@ -1667,7 +1780,7 @@ export const updateLaborChargeInInvoice = async (invoiceId, laborId, updatedLabo
 
 export const removeLaborChargeFromInvoice = async (invoiceId, laborId) => {
   try {
-    const invoiceRef = doc(db, 'invoices', invoiceId);
+    const invoiceRef = getUserDoc('invoices', invoiceId);
     const invoiceDoc = await getDoc(invoiceRef);
     
     if (!invoiceDoc.exists()) {
@@ -1715,14 +1828,13 @@ export const generateWorkOrderId = async () => {
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const day = now.getDate().toString().padStart(2, '0');
     const datePrefix = `${year}${month}${day}`;
-    
-    // Find how many work orders exist for today to generate sequential number
+      // Find how many work orders exist for today to generate sequential number
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
     
-    const workOrdersRef = collection(db, 'workOrders');
+    const userWorkOrdersCollection = getUserCollection('workOrders');
     const q = query(
-      workOrdersRef,
+      userWorkOrdersCollection,
       where('createdAt', '>=', startOfDay),
       where('createdAt', '<=', endOfDay)
     );

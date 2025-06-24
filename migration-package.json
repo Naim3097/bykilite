@@ -1,0 +1,16 @@
+{
+  "name": "byki-data-migration",
+  "version": "1.0.0",
+  "description": "Data migration script for BYKI LITE multi-tenant conversion",
+  "main": "migrate-data.js",
+  "scripts": {
+    "migrate": "node migrate-data.js",
+    "validate": "node validate-migration.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "byki-migration",
+  "version": "1.0.0",
+  "description": "Simple migration script for BYKI LITE",
+  "main": "simple-migration.js",
+  "scripts": {
+    "migrate": "node simple-migration.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

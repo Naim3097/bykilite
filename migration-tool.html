@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BYKI LITE Data Migration Tool</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .danger {
+            background-color: #dc3545;
+        }
+        .danger:hover {
+            background-color: #c82333;
+        }
+        #log {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .progress {
+            background-color: #e9ecef;
+            border-radius: 4px;
+            height: 20px;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            background-color: #007bff;
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 BYKI LITE Data Migration Tool</h1>
+        
+        <div class="warning">
+            <strong>⚠️ Important:</strong> This tool will migrate your global Firestore collections to user-scoped subcollections. 
+            Make sure you have backups before proceeding. This process is irreversible without backups.
+        </div>
+        
+        <div id="status"></div>
+        
+        <div>
+            <button id="startMigration" onclick="startMigration()">🚀 Start Migration</button>
+            <button id="validateMigration" onclick="validateOnly()" disabled>✅ Validate Only</button>
+            <button id="rollbackBtn" onclick="rollbackMigration()" class="danger" disabled>🔄 Rollback Migration</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+        
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-number" id="userIdStat">-</div>
+                <div class="stat-label">Demo User ID</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="collectionsStat">0</div>
+                <div class="stat-label">Collections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="documentsStat">0</div>
+                <div class="stat-label">Documents Migrated</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="statusStat">Pending</div>
+                <div class="stat-label">Status</div>
+            </div>
+        </div>
+        
+        <div class="progress" id="progressContainer" style="display: none;">
+            <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+        </div>
+        
+        <div id="log"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/9.0.0/firebase-auth.js';
+        import { 
+            getFirestore, 
+            collection, 
+            getDocs, 
+            doc, 
+            setDoc, 
+            writeBatch,
+            getDoc
+        } from 'https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBloaW6TgHLVPO9HcCtlsQcLl9J32SY9UQ",
+            authDomain: "sparepart-management-system.firebaseapp.com",
+            projectId: "sparepart-management-system",
+            storageBucket: "sparepart-management-system.firebasestorage.app",
+            messagingSenderId: "673702003106",
+            appId: "1:673702003106:web:4d379e315659d0bc6c72fb"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Demo user credentials
+        const DEMO_EMAIL = 'demo@byki.com';
+        const DEMO_PASSWORD = 'demo123456';
+
+        // Collections to migrate
+        const COLLECTIONS_TO_MIGRATE = [
+            'parts',
+            'customers', 
+            'mechanics',
+            'workOrders',
+            'suppliers',
+            'purchaseOrders',
+            'expenses',
+            'payments',
+            'invoices',
+            'stockCounts',
+            'scheduleEvents'
+        ];
+
+        let migrationData = null;
+
+        // Logging utilities
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logEl.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`${prefix} ${message}`);
+        }
+
+        function updateProgress(current, total) {
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            
+            if (total > 0) {
+                progressContainer.style.display = 'block';
+                const percentage = (current / total) * 100;
+                progressBar.style.width = `${percentage}%`;
+            } else {
+                progressContainer.style.display = 'none';
+            }
+        }
+
+        function updateStats(userId, totalCollections, totalDocuments, status) {
+            document.getElementById('stats').style.display = 'grid';
+            document.getElementById('userIdStat').textContent = userId ? userId.substring(0, 8) + '...' : '-';
+            document.getElementById('collectionsStat').textContent = totalCollections;
+            document.getElementById('documentsStat').textContent = totalDocuments;
+            document.getElementById('statusStat').textContent = status;
+        }
+
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = type;
+            statusEl.innerHTML = `<strong>${message}</strong>`;
+        }
+
+        // Migration functions
+        async function loginDemoUser() {
+            try {
+                log('Logging in as demo user...');
+                const userCredential = await signInWithEmailAndPassword(auth, DEMO_EMAIL, DEMO_PASSWORD);
+                const userId = userCredential.user.uid;
+                log(`Demo user logged in successfully! User ID: ${userId}`, 'success');
+                return userId;
+            } catch (error) {
+                log(`Failed to login demo user: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        async function exportCollection(collectionName) {
+            try {
+                log(`Exporting ${collectionName}...`);
+                const querySnapshot = await getDocs(collection(db, collectionName));
+                const documents = [];
+                
+                querySnapshot.forEach(docSnap => {
+                    documents.push({
+                        id: docSnap.id,
+                        data: docSnap.data()
+                    });
+                });
+                
+                log(`Exported ${documents.length} documents from ${collectionName}`, 'success');
+                return documents;
+            } catch (error) {
+                log(`Error exporting ${collectionName}: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        async function migrateCollection(collectionName, documents, userId) {
+            try {
+                log(`Migrating ${collectionName} to user-scoped collection...`);
+                
+                if (documents.length === 0) {
+                    log(`No documents to migrate for ${collectionName}`, 'warning');
+                    return;
+                }
+                
+                // Use batch writes for efficiency
+                const batches = [];
+                const batchSize = 500;
+                
+                for (let i = 0; i < documents.length; i += batchSize) {
+                    const batch = writeBatch(db);
+                    const batchDocs = documents.slice(i, i + batchSize);
+                    
+                    batchDocs.forEach(docData => {
+                        const userDocRef = doc(db, 'users', userId, collectionName, docData.id);
+                        batch.set(userDocRef, docData.data);
+                    });
+                    
+                    batches.push(batch);
+                }
+                
+                // Commit all batches
+                for (let i = 0; i < batches.length; i++) {
+                    await batches[i].commit();
+                    log(`Committed batch ${i + 1}/${batches.length} for ${collectionName}`);
+                }
+                
+                log(`Migrated ${documents.length} documents to users/${userId}/${collectionName}`, 'success');
+            } catch (error) {
+                log(`Error migrating ${collectionName}: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        async function validateMigration(collectionName, originalCount, userId) {
+            try {
+                log(`Validating ${collectionName}...`);
+                
+                const userCollectionRef = collection(db, 'users', userId, collectionName);
+                const snapshot = await getDocs(userCollectionRef);
+                const migratedCount = snapshot.size;
+                
+                if (originalCount === migratedCount) {
+                    log(`${collectionName}: ${originalCount} → ${migratedCount} ✓`, 'success');
+                    return true;
+                } else {
+                    log(`${collectionName}: ${originalCount} → ${migratedCount} ✗`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                log(`Error validating ${collectionName}: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Main migration function
+        window.startMigration = async function() {
+            try {
+                document.getElementById('startMigration').disabled = true;
+                showStatus('Migration in progress...', 'warning');
+                
+                log('Starting BYKI LITE Data Migration...', 'success');
+                log('=====================================');
+                
+                // Step 1: Login as demo user
+                const demoUserId = await loginDemoUser();
+                updateStats(demoUserId, COLLECTIONS_TO_MIGRATE.length, 0, 'In Progress');
+                
+                // Step 2: Export all collections
+                log('STEP 2: Exporting collections...');
+                const exportedData = {};
+                let totalDocuments = 0;
+                
+                for (let i = 0; i < COLLECTIONS_TO_MIGRATE.length; i++) {
+                    const collectionName = COLLECTIONS_TO_MIGRATE[i];
+                    updateProgress(i, COLLECTIONS_TO_MIGRATE.length);
+                    
+                    exportedData[collectionName] = await exportCollection(collectionName);
+                    totalDocuments += exportedData[collectionName].length;
+                    
+                    updateStats(demoUserId, COLLECTIONS_TO_MIGRATE.length, totalDocuments, 'Exporting');
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                // Step 3: Migrate collections
+                log('STEP 3: Migrating collections...');
+                updateStats(demoUserId, COLLECTIONS_TO_MIGRATE.length, totalDocuments, 'Migrating');
+                
+                for (let i = 0; i < COLLECTIONS_TO_MIGRATE.length; i++) {
+                    const collectionName = COLLECTIONS_TO_MIGRATE[i];
+                    updateProgress(i, COLLECTIONS_TO_MIGRATE.length);
+                    
+                    await migrateCollection(collectionName, exportedData[collectionName], demoUserId);
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+                
+                // Step 4: Validation
+                log('STEP 4: Validating migration...');
+                updateStats(demoUserId, COLLECTIONS_TO_MIGRATE.length, totalDocuments, 'Validating');
+                
+                let allValid = true;
+                for (let i = 0; i < COLLECTIONS_TO_MIGRATE.length; i++) {
+                    const collectionName = COLLECTIONS_TO_MIGRATE[i];
+                    updateProgress(i, COLLECTIONS_TO_MIGRATE.length);
+                    
+                    const originalCount = exportedData[collectionName].length;
+                    const isValid = await validateMigration(collectionName, originalCount, demoUserId);
+                    
+                    if (!isValid) {
+                        allValid = false;
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                updateProgress(COLLECTIONS_TO_MIGRATE.length, COLLECTIONS_TO_MIGRATE.length);
+                
+                // Summary
+                log('MIGRATION SUMMARY', 'success');
+                log('====================');
+                log(`Demo User ID: ${demoUserId}`);
+                log(`Collections Migrated: ${COLLECTIONS_TO_MIGRATE.length}`);
+                log(`Total Documents Migrated: ${totalDocuments}`);
+                log(`Migration Status: ${allValid ? 'SUCCESS' : 'FAILED'}`, allValid ? 'success' : 'error');
+                
+                migrationData = {
+                    success: allValid,
+                    demoUserId,
+                    exportedData,
+                    totalDocuments
+                };
+                
+                updateStats(demoUserId, COLLECTIONS_TO_MIGRATE.length, totalDocuments, allValid ? 'Success' : 'Failed');
+                
+                if (allValid) {
+                    showStatus('Migration completed successfully!', 'success');
+                    log('Next steps:', 'success');
+                    log('1. Test the application with demo user');
+                    log('2. Test creating a new user account');
+                    log('3. Update Firestore security rules');
+                    log('4. Clean up global collections (optional)');
+                } else {
+                    showStatus('Migration completed with errors!', 'error');
+                    log('Please check the errors above and consider rollback if needed', 'warning');
+                }
+                
+                document.getElementById('rollbackBtn').disabled = false;
+                document.getElementById('validateMigration').disabled = false;
+                
+            } catch (error) {
+                log(`Migration failed: ${error.message}`, 'error');
+                showStatus('Migration failed!', 'error');
+                updateStats('-', 0, 0, 'Failed');
+            } finally {
+                document.getElementById('startMigration').disabled = false;
+                updateProgress(0, 0);
+            }
+        };
+
+        // Rollback function
+        window.rollbackMigration = async function() {
+            if (!migrationData || !migrationData.demoUserId) {
+                log('No migration data found for rollback', 'error');
+                return;
+            }
+            
+            if (!confirm('Are you sure you want to rollback the migration? This will delete all migrated data.')) {
+                return;
+            }
+            
+            try {
+                document.getElementById('rollbackBtn').disabled = true;
+                showStatus('Rollback in progress...', 'warning');
+                
+                log('Starting rollback process...', 'warning');
+                const userId = migrationData.demoUserId;
+                
+                for (let i = 0; i < COLLECTIONS_TO_MIGRATE.length; i++) {
+                    const collectionName = COLLECTIONS_TO_MIGRATE[i];
+                    updateProgress(i, COLLECTIONS_TO_MIGRATE.length);
+                    
+                    log(`Cleaning up ${collectionName}...`);
+                    const userCollectionRef = collection(db, 'users', userId, collectionName);
+                    const snapshot = await getDocs(userCollectionRef);
+                    
+                    // Delete in batches
+                    const batches = [];
+                    const batchSize = 500;
+                    const docs = snapshot.docs;
+                    
+                    for (let j = 0; j < docs.length; j += batchSize) {
+                        const batch = writeBatch(db);
+                        const batchDocs = docs.slice(j, j + batchSize);
+                        
+                        batchDocs.forEach(docSnapshot => {
+                            batch.delete(docSnapshot.ref);
+                        });
+                        
+                        batches.push(batch);
+                    }
+                    
+                    // Commit delete batches
+                    for (let j = 0; j < batches.length; j++) {
+                        await batches[j].commit();
+                        log(`Deleted batch ${j + 1}/${batches.length} for ${collectionName}`);
+                    }
+                    
+                    log(`Cleaned up users/${userId}/${collectionName}`, 'success');
+                }
+                
+                updateProgress(COLLECTIONS_TO_MIGRATE.length, COLLECTIONS_TO_MIGRATE.length);
+                log('Rollback completed!', 'success');
+                showStatus('Rollback completed successfully!', 'success');
+                
+                migrationData = null;
+                updateStats('-', 0, 0, 'Rolled Back');
+                
+            } catch (error) {
+                log(`Rollback failed: ${error.message}`, 'error');
+                showStatus('Rollback failed!', 'error');
+            } finally {
+                document.getElementById('rollbackBtn').disabled = true;
+                updateProgress(0, 0);
+            }
+        };
+
+        // Validate only function
+        window.validateOnly = async function() {
+            if (!migrationData || !migrationData.demoUserId) {
+                log('No migration data found for validation', 'error');
+                return;
+            }
+            
+            try {
+                log('Starting validation check...', 'success');
+                const { demoUserId, exportedData } = migrationData;
+                
+                let allValid = true;
+                for (let i = 0; i < COLLECTIONS_TO_MIGRATE.length; i++) {
+                    const collectionName = COLLECTIONS_TO_MIGRATE[i];
+                    updateProgress(i, COLLECTIONS_TO_MIGRATE.length);
+                    
+                    const originalCount = exportedData[collectionName].length;
+                    const isValid = await validateMigration(collectionName, originalCount, demoUserId);
+                    
+                    if (!isValid) {
+                        allValid = false;
+                    }
+                }
+                
+                updateProgress(COLLECTIONS_TO_MIGRATE.length, COLLECTIONS_TO_MIGRATE.length);
+                log(`Validation complete. Status: ${allValid ? 'PASSED' : 'FAILED'}`, allValid ? 'success' : 'error');
+                
+            } catch (error) {
+                log(`Validation failed: ${error.message}`, 'error');
+            } finally {
+                updateProgress(0, 0);
+            }
+        };
+
+        // Clear log function
+        window.clearLog = function() {
+            document.getElementById('log').textContent = '';
+        };
+
+        // Initialize
+        log('BYKI LITE Migration Tool loaded successfully!', 'success');
+        log('Click "Start Migration" to begin the data migration process.');
+    </script>
+</body>
+</html>

@@ -15,7 +15,6 @@ import {
   addCommissionToWorkOrder,
   updateCommissionStatus
 } from '../services/dataService';
-import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebaseConfig';
 import InvoiceDisplay from '../components/InvoiceDisplay';
 import { toast } from 'react-toastify';
@@ -35,13 +34,17 @@ function WorkOrderDetailPage() {
   const [showCommissionForm, setShowCommissionForm] = useState(false);
   const [commissionAmount, setCommissionAmount] = useState('');
   const [commissionNotes, setCommissionNotes] = useState('');
-  
-  // Labor charge management state
+    // Labor charge management state
   const [showLaborForm, setShowLaborForm] = useState(false);
   const [laborCharges, setLaborCharges] = useState([]);
   const [laborDescription, setLaborDescription] = useState('');
   const [laborHours, setLaborHours] = useState(1);
   const [laborRate, setLaborRate] = useState(50); // Default rate in RM
+  
+  // Page-level tab management
+  const [activeTab, setActiveTab] = useState('details');
+  // Possible values: 'details', 'parts-labor', 'invoices'
+  // Note: Commission is now outside the tab system
   
   const loadWorkOrderDetails = useCallback(async () => {
     try {
@@ -82,12 +85,50 @@ function WorkOrderDetailPage() {
       setLoading(false);
     }
   }, [id, navigate]);
-
   useEffect(() => {
     if (id) {
       loadWorkOrderDetails();
   }
   }, [id, loadWorkOrderDetails]);
+
+  // Cleanup JSX artifacts useEffect
+  useEffect(() => {
+    // Clean up stray JSX artifacts after render
+    const cleanupArtifacts = () => {
+      const pageElement = document.querySelector('.page');
+      if (!pageElement) return;
+      
+      const walker = document.createTreeWalker(
+        pageElement,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: (node) => {
+            // Target text nodes that only contain ")}" or similar artifacts
+            return /^[\s]*\)\}[\s]*$/.test(node.textContent) 
+              ? NodeFilter.FILTER_ACCEPT 
+              : NodeFilter.FILTER_REJECT;
+          }
+        }
+      );
+      
+      const artifactNodes = [];
+      let node;
+      while (node = walker.nextNode()) {
+        artifactNodes.push(node);
+      }
+      
+      // Remove the artifact nodes
+      artifactNodes.forEach(node => {
+        if (node.parentNode) {
+          node.parentNode.removeChild(node);
+        }
+      });
+    };
+    
+    // Run cleanup after a brief delay to ensure DOM is fully rendered
+    const timer = setTimeout(cleanupArtifacts, 100);
+    return () => clearTimeout(timer);
+  }, [workOrder]); // Re-run when workOrder changes
     const handleStatusChange = async (newStatus) => {
     try {
       // Validate the status transition
@@ -282,7 +323,6 @@ function WorkOrderDetailPage() {
       }
     }
   };
-
   const handleAddLabor = async () => {
     if (!laborDescription.trim()) {
       toast.error('Please enter a labor description');
@@ -310,9 +350,8 @@ function WorkOrderDetailPage() {
     const updatedLaborCharges = [...laborCharges, newLaborCharge];
     
     try {
-      // Save to Firestore
-      const workOrderRef = doc(db, 'workOrders', id);
-      await updateDoc(workOrderRef, {
+      // Save to Firestore using the dataService function for user-scoped access
+      await updateWorkOrderStatus(id, workOrder.status, {
         laborCharges: updatedLaborCharges,
         updatedAt: new Date().toISOString()
       });
@@ -329,14 +368,12 @@ function WorkOrderDetailPage() {
       toast.error('Failed to save labor charge');
     }
   };
-
   const handleRemoveLabor = async (laborId) => {
     const updatedLaborCharges = laborCharges.filter(labor => labor.id !== laborId);
     
     try {
-      // Save to Firestore
-      const workOrderRef = doc(db, 'workOrders', id);
-      await updateDoc(workOrderRef, {
+      // Use the user-scoped update function instead of direct Firestore update
+      await updateWorkOrderStatus(id, workOrder.status, {
         laborCharges: updatedLaborCharges,
         updatedAt: new Date().toISOString()
       });
@@ -398,9 +435,9 @@ function WorkOrderDetailPage() {
         </div>
       </div>
     );
-  }
-  return (
-    <div className="page">      <div className="page-header">
+  }  return (
+    <div className="page">
+      <div className="page-header">
         <h1 className="page-title">
           {workOrder.id.startsWith('WO-') ? workOrder.id : `Work Order #${workOrder.id}`}
         </h1>
@@ -412,8 +449,39 @@ function WorkOrderDetailPage() {
           }`}
         >
           {workOrder.status}
-        </span>
-      </div>{/* Work Order Summary */}
+        </span>      </div>
+
+      {/* Page-Level Tab Navigation */}
+      <div className="tab-navigation">
+        <div className="tab-list">
+          <button
+            className={`tab-button ${activeTab === 'details' ? 'active' : ''}`}
+            onClick={() => setActiveTab('details')}
+          >
+            Work Order Details
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'parts-labor' ? 'active' : ''}`}
+            onClick={() => setActiveTab('parts-labor')}
+          >
+            Parts & Labor
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'invoices' ? 'active' : ''}`}
+            onClick={() => setActiveTab('invoices')}
+          >
+            Invoices
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content Area */}
+      <div className="tab-content">
+        {/* Work Order Details Tab */}
+        {activeTab === 'details' && (
+          <div className="space-y-6">
+
+            {/* Work Order Summary */}
       <div className="card">
         <div className="card-header">
           <h3 className="card-title">Work Order Summary</h3>
@@ -485,7 +553,9 @@ function WorkOrderDetailPage() {
             </div>
           </div>
         </div>
-      </div>      {/* Schedule Information */}
+      </div>
+
+      {/* Schedule Information */}
       {schedule && (
         <div className="card">
           <div className="card-header">
@@ -534,7 +604,9 @@ function WorkOrderDetailPage() {
             )}
           </div>
         </div>
-      )}      {/* Add Schedule Option for Unscheduled Work Orders */}
+      )}
+
+      {/* Add Schedule Option for Unscheduled Work Orders */}
       {!schedule && workOrder.status !== 'Completed' && (
         <div className="card">
           <div className="card-header">
@@ -586,283 +658,317 @@ function WorkOrderDetailPage() {
         </div>
       </div>
 
-      {/* Parts Management */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">Parts Issued</h3>
-          {workOrder.status !== 'Completed' && (
-            <button 
-              className="btn btn-primary"
-              onClick={() => setShowPartForm(!showPartForm)}
-            >
-              Issue Parts
-            </button>
-          )}
-        </div>        {showPartForm && (
-          <div className="form-overlay">
-            <form onSubmit={handleIssuePart}>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div className="form-group">
-                  <label htmlFor="partSelect">Select Part</label>
-                  <select
-                    id="partSelect"
-                    value={selectedPart}
-                    onChange={(e) => setSelectedPart(e.target.value)}
-                    required
-                  >
-                    <option value="">Choose a part...</option>
-                    {parts.filter(part => part.currentStock > 0).map(part => (
-                      <option key={part.id} value={part.id}>
-                        {part.name} - {part.sku} (Stock: {part.currentStock})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="partQty">Quantity</label>
-                  <input
-                    type="number"
-                    id="partQty"
-                    value={partQty}
-                    onChange={(e) => setPartQty(parseInt(e.target.value) || 1)}
-                    min="1"
-                    required
-                  />
-                </div>
-                <div className="btn-group">
-                  <button type="submit" className="btn btn-primary">
-                    Issue Part
-                  </button>
+          </div>
+        )}
+
+        {/* Parts & Labor Tab */}
+        {activeTab === 'parts-labor' && (
+          <div className="space-y-8">
+            {/* Parts Section */}
+            <div className="mb-8">
+              <div className="section-header mb-4">
+                <h4 className="section-title">Parts Issued</h4>
+                {workOrder.status !== 'Completed' && (
                   <button 
-                    type="button" 
-                    className="btn btn-secondary"
-                    onClick={() => setShowPartForm(false)}
+                    className="btn btn-primary"
+                    onClick={() => setShowPartForm(!showPartForm)}
                   >
-                    Cancel
+                    Issue Parts
                   </button>
-                </div>
+                )}
               </div>
-            </form>
-          </div>
-        )}
-
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Part Name</th>
-                <th>SKU</th>
-                <th>Quantity</th>
-                <th>Unit Price</th>
-                <th>Total</th>
-                <th>Issued At</th>
-              </tr>
-            </thead>            <tbody>
-              {orderItems.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="empty-state">
-                    No parts issued yet.
-                  </td>
-                </tr>
-              ) : (
-                orderItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>{getPartName(item.partId)}</td>
-                    <td>{parts.find(p => p.id === item.partId)?.sku || '-'}</td>
-                    <td>{item.qty}</td>
-                    <td>RM{getPartPrice(item.partId).toFixed(2)}</td>
-                    <td>RM{(getPartPrice(item.partId) * item.qty).toFixed(2)}</td>
-                    <td>{new Date(item.issuedAt).toLocaleString()}</td>
-                  </tr>
-                ))
-              )}
-              {orderItems.length > 0 && (
-                <tr className="table-total">
-                  <td colSpan="4" className="text-right font-semibold">Total Cost:</td>
-                  <td className="font-semibold">RM{calculateTotalCost().toFixed(2)}</td>
-                  <td></td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>      </div>
-
-      {/* Labor Charges Management */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">Labor Charges</h3>
-          {workOrder.status !== 'Completed' && (
-            <button 
-              className="btn btn-primary"
-              onClick={() => setShowLaborForm(!showLaborForm)}
-            >
-              Add Labor
-            </button>
-          )}
-        </div>        {showLaborForm && (
-          <div className="form-overlay">
-            <form onSubmit={(e) => { e.preventDefault(); handleAddLabor(); }}>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div className="form-group">
-                  <label htmlFor="laborDescription">Labor Description</label>
-                  <input
-                    type="text"
-                    id="laborDescription"
-                    value={laborDescription}
-                    onChange={(e) => setLaborDescription(e.target.value)}
-                    placeholder="e.g., Engine diagnostic, Oil change, Brake repair..."
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="laborHours">Hours</label>
-                  <input
-                    type="number"
-                    id="laborHours"
-                    value={laborHours}
-                    onChange={(e) => setLaborHours(parseFloat(e.target.value) || 1)}
-                    min="0.1"
-                    step="0.1"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="laborRate">Rate (RM/hour)</label>
-                  <input
-                    type="number"
-                    id="laborRate"
-                    value={laborRate}
-                    onChange={(e) => setLaborRate(parseFloat(e.target.value) || 50)}
-                    min="0.01"
-                    step="0.01"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="btn-group mt-4">
-                <button type="submit" className="btn btn-primary">
-                  Add Labor Charge
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary"
-                  onClick={() => setShowLaborForm(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Labor Description</th>
-                <th>Hours</th>
-                <th>Rate (RM/hour)</th>
-                <th>Total</th>
-                {workOrder.status !== 'Completed' && <th>Actions</th>}
-              </tr>
-            </thead>            <tbody>
-              {laborCharges.length === 0 ? (
-                <tr>
-                  <td colSpan={workOrder.status !== 'Completed' ? "5" : "4"} className="empty-state">
-                    No labor charges added yet.
-                  </td>
-                </tr>
-              ) : (
-                laborCharges.map((labor) => (
-                  <tr key={labor.id}>
-                    <td>{labor.description}</td>
-                    <td>{labor.hours}</td>
-                    <td>RM{labor.rate.toFixed(2)}</td>
-                    <td>RM{(labor.hours * labor.rate).toFixed(2)}</td>
-                    {workOrder.status !== 'Completed' && (
-                      <td>
-                        <button 
-                          className="btn btn-danger btn-sm"
-                          onClick={() => handleRemoveLabor(labor.id)}
+              
+              {showPartForm && (
+                <div className="form-overlay">
+                  <form onSubmit={handleIssuePart}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <div className="form-group">
+                        <label htmlFor="partSelect">Select Part</label>
+                        <select
+                          id="partSelect"
+                          value={selectedPart}
+                          onChange={(e) => setSelectedPart(e.target.value)}
+                          required
                         >
-                          Remove
+                          <option value="">Choose a part...</option>
+                          {parts.filter(part => part.currentStock > 0).map(part => (
+                            <option key={part.id} value={part.id}>
+                              {part.name} - {part.sku} (Stock: {part.currentStock})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="partQty">Quantity</label>
+                        <input
+                          type="number"
+                          id="partQty"
+                          value={partQty}
+                          onChange={(e) => setPartQty(parseInt(e.target.value) || 1)}
+                          min="1"
+                          required
+                        />
+                      </div>
+                      <div className="btn-group">
+                        <button type="submit" className="btn btn-primary">
+                          Issue Part
                         </button>
-                      </td>
+                        <button 
+                          type="button" 
+                          className="btn btn-secondary"
+                          onClick={() => setShowPartForm(false)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Part Name</th>
+                      <th>SKU</th>
+                      <th>Quantity</th>
+                      <th>Unit Price</th>
+                      <th>Total</th>
+                      <th>Issued At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orderItems.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="empty-state">
+                          No parts issued yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      orderItems.map((item) => (
+                        <tr key={item.id}>
+                          <td>{getPartName(item.partId)}</td>
+                          <td>{parts.find(p => p.id === item.partId)?.sku || '-'}</td>
+                          <td>{item.qty}</td>
+                          <td>RM{getPartPrice(item.partId).toFixed(2)}</td>
+                          <td>RM{(getPartPrice(item.partId) * item.qty).toFixed(2)}</td>
+                          <td>{new Date(item.issuedAt).toLocaleString()}</td>
+                        </tr>
+                      ))
                     )}
-                  </tr>
-                ))
-              )}
-              {laborCharges.length > 0 && (
-                <tr className="table-total">
-                  <td colSpan="3" className="text-right font-semibold">Total Labor Cost:</td>
-                  <td className="font-semibold">RM{laborCharges.reduce((total, labor) => total + (labor.hours * labor.rate), 0).toFixed(2)}</td>
-                  {workOrder.status !== 'Completed' && <td></td>}
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>      {/* Invoice Management */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">Invoices</h3>
-          {workOrder.status === 'Completed' && invoices.length === 0 && laborCharges.length > 0 && (
-            <div className="text-green font-semibold text-sm">
-              ✓ Labor charges ready to be included in invoice
-            </div>
-          )}
-          {workOrder.status === 'Completed' && invoices.length === 0 && (
-            <button 
-              className="btn btn-primary"
-              onClick={handleDraftInvoice}
-            >
-              Create Invoice
-            </button>
-          )}
-        </div>
-        {invoices.length > 0 ? (
-          <div className="card-content">
-            {invoices.map((invoice, index) => (
-              <div key={invoice.id} className={index < invoices.length - 1 ? "border-b pb-4 mb-4" : ""}>
-                <InvoiceDisplay invoice={invoice} isReadOnly={true} showPrintButton={true} />
+                    {orderItems.length > 0 && (
+                      <tr className="table-total">
+                        <td colSpan="4" className="text-right font-semibold">Total Cost:</td>
+                        <td className="font-semibold">RM{calculateTotalCost().toFixed(2)}</td>
+                        <td></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            </div>
+            
+            {/* Labor Charges Section */} 
+            <div>
+              <div className="section-header mb-4">
+                <h4 className="section-title">Labor Charges</h4>
+                {workOrder.status !== 'Completed' && (
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => setShowLaborForm(!showLaborForm)}
+                  >
+                    Add Labor
+                  </button>
+                )}
+              </div>
+              
+              {showLaborForm && (
+                <div className="form-overlay">
+                  <form onSubmit={(e) => { e.preventDefault(); handleAddLabor(); }}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <div className="form-group">
+                        <label htmlFor="laborDescription">Labor Description</label>
+                        <input
+                          type="text"
+                          id="laborDescription"
+                          value={laborDescription}
+                          onChange={(e) => setLaborDescription(e.target.value)}
+                          placeholder="e.g., Engine diagnostic, Oil change, Brake repair..."
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="laborHours">Hours</label>
+                        <input
+                          type="number"
+                          id="laborHours"
+                          value={laborHours}
+                          onChange={(e) => setLaborHours(parseFloat(e.target.value) || 1)}
+                          min="0.1"
+                          step="0.1"
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="laborRate">Rate (RM/hour)</label>
+                        <input
+                          type="number"
+                          id="laborRate"
+                          value={laborRate}
+                          onChange={(e) => setLaborRate(parseFloat(e.target.value) || 50)}
+                          min="0.01"
+                          step="0.01"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="btn-group mt-4">
+                      <button type="submit" className="btn btn-primary">
+                        Add Labor Charge
+                      </button>
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary"
+                        onClick={() => setShowLaborForm(false)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Labor Description</th>
+                      <th>Hours</th>
+                      <th>Rate (RM/hour)</th>
+                      <th>Total</th>
+                      {workOrder.status !== 'Completed' && <th>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {laborCharges.length === 0 ? (
+                      <tr>
+                        <td colSpan={workOrder.status !== 'Completed' ? "5" : "4"} className="empty-state">
+                          No labor charges added yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      laborCharges.map((labor) => (
+                        <tr key={labor.id}>
+                          <td>{labor.description}</td>
+                          <td>{labor.hours}</td>
+                          <td>RM{labor.rate.toFixed(2)}</td>
+                          <td>RM{(labor.hours * labor.rate).toFixed(2)}</td>
+                          {workOrder.status !== 'Completed' && (
+                            <td>
+                              <button 
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleRemoveLabor(labor.id)}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                    {laborCharges.length > 0 && (
+                      <tr className="table-total">
+                        <td colSpan="3" className="text-right font-semibold">Total Labor Cost:</td>
+                        <td className="font-semibold">RM{laborCharges.reduce((total, labor) => total + (labor.hours * labor.rate), 0).toFixed(2)}</td>
+                        {workOrder.status !== 'Completed' && <td></td>}
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="empty-state">
-            {workOrder.status === 'Completed' ? (
-              <p>No invoice created yet. Click "Create Invoice" to generate one.</p>
+        )}
+
+        {/* Invoices Tab */}
+        {activeTab === 'invoices' && (
+          <div>
+            <div className="section-header mb-6">
+              <h3 className="section-title">Invoices</h3>
+              {workOrder.status === 'Completed' && invoices.length === 0 && laborCharges.length > 0 && (
+                <div className="text-green font-semibold text-sm">
+                  ✓ Labor charges ready to be included in invoice
+                </div>
+              )}
+              {workOrder.status === 'Completed' && invoices.length === 0 && (
+                <button 
+                  className="btn btn-primary"
+                  onClick={handleDraftInvoice}
+                >
+                  Create Invoice
+                </button>
+              )}
+            </div>
+              {invoices.length > 0 ? (
+              <div className="invoice-content">
+                {/* Show only the most recent invoice (latest one) */}
+                {(() => {
+                  // Get the most recent invoice (assuming they're sorted by creation date or take the last one)
+                  const mostRecentInvoice = invoices[invoices.length - 1];
+                  return (
+                    <div key={mostRecentInvoice.id}>
+                      <InvoiceDisplay invoice={mostRecentInvoice} isReadOnly={true} showPrintButton={true} />
+                      {invoices.length > 1 && (
+                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-sm text-blue-800">
+                            <strong>Note:</strong> Showing the most recent invoice. Total invoices for this work order: {invoices.length}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
             ) : (
-              <p>Invoice will be available after work order completion.</p>
+              <div className="empty-state">
+                {workOrder.status === 'Completed' ? (
+                  <p>No invoice created yet. Click "Create Invoice" to generate one.</p>
+                ) : (
+                  <p>Invoice will be available after work order completion.</p>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>      {/* Commission Management - Enhanced */}
+        )}      </div>      {/* Commission Management - Outside Tabs */}
       {workOrder.status === 'Completed' && (
-        <div className="card">
+        <div className="card" style={{ marginTop: '2rem' }}>
           <div className="card-header">
             <h3 className="card-title">💰 Mechanic Commission</h3>
-            {!showCommissionForm && !workOrder.commission && (
-              <button 
-                className="btn btn-success"
-                onClick={() => setShowCommissionForm(true)}
-              >
-                Add Commission
-              </button>
-            )}
-            {!showCommissionForm && workOrder.commission && (
-              <button 
-                className="btn btn-info"
-                onClick={() => {
-                  setCommissionAmount(workOrder.commission.amount);
-                  setCommissionNotes('');
-                  setShowCommissionForm(true);
-                }}
-              >
-                Edit Commission
-              </button>
-            )}
+            <div className="btn-group">
+              {!showCommissionForm && !workOrder.commission && (
+                <button 
+                  className="btn btn-success"
+                  onClick={() => setShowCommissionForm(true)}
+                >
+                  Add Commission
+                </button>
+              )}
+              {!showCommissionForm && workOrder.commission && (
+                <button 
+                  className="btn btn-info"
+                  onClick={() => {
+                    setCommissionAmount(workOrder.commission.amount);
+                    setCommissionNotes('');
+                    setShowCommissionForm(true);
+                  }}
+                >
+                  Edit Commission
+                </button>
+              )}
+            </div>
           </div>
+          <div className="card-content">
           
           {showCommissionForm && (
             <div className="form-overlay">
@@ -927,10 +1033,9 @@ function WorkOrderDetailPage() {
               <p><span className="font-semibold">Mechanic:</span> {mechanic?.name || 'Unassigned'}</p>
             </div>
           )}
-          
-          {!showCommissionForm && workOrder.commission && (
-            <div className="card-body">
-              <div className="commission-details grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {!showCommissionForm && workOrder.commission && (
+            <div className="commission-details">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="detail-item">
                   <span className="detail-label">Amount</span>
                   <span className="detail-value font-bold text-green-600 text-lg">
@@ -1016,14 +1121,13 @@ function WorkOrderDetailPage() {
                         }
                       }}
                     >
-                      Mark as Unpaid
-                    </button>
+                      Mark as Unpaid                    </button>
                   </div>
                 )}
-              </div>
-            </div>
+              </div>            </div>
           )}
         </div>
+      </div>
       )}
     </div>
   );

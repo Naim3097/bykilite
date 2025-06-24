@@ -93,37 +93,36 @@ function InvoiceManagement() {  const [invoices, setInvoices] = useState([]);
       <div className="card">
         <div className="card-header">
           <h3 className="card-title">Filter & Search</h3>
-        </div>
-        <div className="card-body">
+        </div>        <div className="card-body">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="form-label">Payment Status</label>
+            <div className="form-group">
+              <label htmlFor="filterStatus">Payment Status</label>
               <select
+                id="filterStatus"
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="form-input"
               >
                 <option value="all">All Invoices</option>
                 <option value="paid">Paid Only</option>
                 <option value="pending">Pending Payment</option>
               </select>
             </div>
-            <div>
-              <label className="form-label">Work Order ID</label>
+            <div className="form-group">
+              <label htmlFor="searchWorkOrder">Work Order ID</label>
               <input
                 type="text"
+                id="searchWorkOrder"
                 value={searchWorkOrder}
                 onChange={(e) => setSearchWorkOrder(e.target.value)}
                 placeholder="Search by Work Order ID..."
-                className="form-input"
               />
             </div>
-            <div>
-              <label className="form-label">Date Range</label>
+            <div className="form-group">
+              <label htmlFor="dateFilter">Date Range</label>
               <select
+                id="dateFilter"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="form-input"
               >
                 <option value="all">All Time</option>
                 <option value="today">Today</option>

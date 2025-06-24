@@ -83,6 +83,12 @@ body {
   font-size: 1.25rem;
 }
 
+.logo-image {
+  height: 1.8rem; /* Slightly larger than the text size to match visual weight */
+  width: auto;
+  object-fit: contain;
+}
+
 .section-title {
   font-size: 1.25rem;
   font-weight: 500;
@@ -277,7 +283,388 @@ body {
   margin-bottom: 0.5rem;
 }
 
-/* Login page */
+/* ==========================================
+   PREMIUM LOGIN PAGE - GLASS MORPHISM
+   ========================================== */
+
+/* Main container with animated gradient background */
+.premium-login-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, 
+    var(--deep-teal-green) 0%, 
+    var(--cool-gray) 25%, 
+    var(--deep-teal-green) 50%, 
+    var(--minty-green) 75%, 
+    var(--deep-teal-green) 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+  overflow: hidden;
+}
+
+/* Background overlay with radial gradients */
+.premium-login-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(113, 241, 187, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(22, 143, 96, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 193, 7, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Floating background elements */
+.background-elements {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.floating-shape {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.1;
+  animation: float 6s ease-in-out infinite;
+}
+
+.shape-1 {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(135deg, var(--minty-green), var(--deep-teal-green));
+  top: 20%;
+  left: 15%;
+  animation-delay: 0s;
+}
+
+.shape-2 {
+  width: 150px;
+  height: 150px;
+  background: linear-gradient(135deg, var(--accent-amber), var(--minty-green));
+  top: 60%;
+  right: 20%;
+  animation-delay: 2s;
+}
+
+.shape-3 {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, var(--deep-teal-green), var(--cool-gray));
+  bottom: 30%;
+  left: 25%;
+  animation-delay: 4s;
+}
+
+/* Main glass-morphism card */
+.premium-login-card {
+  position: relative;
+  backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 24px;
+  box-shadow: 
+    0 8px 32px rgba(22, 143, 96, 0.25),
+    0 1px 1px rgba(255, 255, 255, 0.5) inset,
+    0 -1px 1px rgba(0, 0, 0, 0.05) inset;
+  padding: 3rem;
+  width: 100%;
+  max-width: 420px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+}
+
+.premium-login-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 16px 40px rgba(22, 143, 96, 0.2),
+    0 1px 1px rgba(255, 255, 255, 0.3) inset;
+}
+
+/* Logo section */
+.logo-section {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.logo-placeholder {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, var(--deep-teal-green) 0%, var(--minty-green) 100%);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  box-shadow: 
+    0 4px 16px rgba(22, 143, 96, 0.3),
+    0 1px 1px rgba(255, 255, 255, 0.2) inset;
+  position: relative;
+  overflow: hidden;
+}
+
+.logo-placeholder::before {
+  content: "BYKI";
+  color: white;
+  font-weight: bold;
+  font-size: 1rem;
+  letter-spacing: 1px;
+  z-index: 2;
+  position: relative;
+}
+
+.logo-placeholder::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+  transform: rotate(45deg);
+  animation: logoShine 3s ease-in-out infinite;
+}
+
+/* Main logo styling */
+.main-logo {
+  width: 400px;
+  height: auto;
+  max-width: 100%;
+  display: block;
+  margin: 0 auto 1rem;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+  transition: all 0.3s ease;
+}
+
+.main-logo:hover {
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.3));
+  transform: scale(1.02);
+}
+
+/* Welcome section */
+.welcome-section {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.welcome-title {
+  color: #2E3A59;
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.welcome-subtitle {
+  color: #8492A6;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* Premium form styling */
+.premium-form-group {
+  position: relative;
+  margin-bottom: 1.5rem;
+  padding-top: 0.5rem;
+}
+
+.premium-input {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(22, 143, 96, 0.2);
+  border-radius: 12px;
+  color: #2E3A59;
+  font-size: 1rem;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.premium-input::placeholder {
+  color: rgba(46, 58, 89, 0.6);
+}
+
+.premium-input:focus {
+  outline: none;
+  border-color: rgba(113, 241, 187, 0.8);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 
+    0 0 0 3px rgba(113, 241, 187, 0.2),
+    0 4px 12px rgba(22, 143, 96, 0.15);
+}
+
+.premium-input:focus + .floating-label {
+  transform: translateY(-2.5rem) translateX(-0.5rem) scale(0.85);
+  color: var(--deep-teal-green);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px rgba(22, 143, 96, 0.1);
+}
+
+/* Floating labels */
+.floating-label {
+  position: absolute;
+  left: 1.5rem;
+  top: 1rem;
+  color: rgba(46, 58, 89, 0.7);
+  font-size: 1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transform-origin: left center;
+  z-index: 1;
+}
+
+.floating-label.active {
+  transform: translateY(-2.5rem) translateX(-0.5rem) scale(0.85);
+  color: var(--deep-teal-green);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px rgba(22, 143, 96, 0.1);
+}
+
+/* Premium button */
+.premium-login-btn {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--deep-teal-green) 0%, var(--minty-green) 100%);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 1rem;
+}
+
+.premium-login-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.premium-login-btn:hover::before {
+  left: 100%;
+}
+
+.premium-login-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(22, 143, 96, 0.3);
+}
+
+.premium-login-btn:active {
+  transform: translateY(0);
+}
+
+.premium-login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Footer section */
+.footer-section {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.footer-link {
+  color: var(--deep-teal-green);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.footer-link:hover {
+  color: var(--minty-green);
+  text-shadow: 0 0 8px rgba(113, 241, 187, 0.5);
+}
+
+/* Animations */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-20px) rotate(5deg); }
+  66% { transform: translateY(10px) rotate(-3deg); }
+}
+
+@keyframes logoShine {
+  0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+  50% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+  100% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+}
+
+@keyframes cardGlow {
+  0%, 100% { box-shadow: 0 8px 32px rgba(22, 143, 96, 0.15); }
+  50% { box-shadow: 0 8px 32px rgba(22, 143, 96, 0.25); }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .premium-login-card {
+    margin: 1rem;
+    padding: 2rem 1.5rem;
+    border-radius: 20px;
+  }
+  
+  .logo-placeholder {
+    width: 60px;
+    height: 60px;
+  }
+    .main-logo {
+    width: 300px;
+  }
+  
+  .welcome-title {
+    font-size: 1.5rem;
+  }
+  
+  .floating-shape {
+    opacity: 0.05;
+  }
+}
+
+@media (max-width: 480px) {
+  .premium-login-card {
+    margin: 0.5rem;
+    padding: 1.5rem 1rem;
+  }
+    .main-logo {
+    width: 240px;
+  }
+  
+  .premium-input {
+    padding: 0.875rem 1.25rem;
+  }
+}
+
+/* Legacy login compatibility */
 .login-container {
   display: flex;
   justify-content: center;
@@ -301,34 +688,95 @@ body {
   color: #2c3e50;
 }
 
-/* Form styles */
+/* ==========================================
+   FORM STYLING SYSTEM
+   ========================================== */
+
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .form-group label {
-  display: block;
+  font-weight: 600;
+  color: #374151;
   margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #2c3e50;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="email"],
+.form-group input[type="tel"],
+.form-group input[type="password"],
+.form-group input[type="date"],
+.form-group input[type="time"] {
+  padding: 0.75rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
   font-size: 1rem;
+  transition: all 0.2s ease;
+  background-color: #ffffff;
+}
+
+.form-group select {
+  padding: 0.75rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  background-color: #ffffff;
+  cursor: pointer;
+}
+
+.form-group textarea {
+  padding: 0.75rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  background-color: #ffffff;
+  min-height: 100px;
+  resize: vertical;
 }
 
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: var(--deep-teal-green);
-  box-shadow: 0 0 0 2px rgba(22, 143, 96, 0.2);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-group input:hover,
+.form-group select:hover,
+.form-group textarea:hover {
+  border-color: #d1d5db;
+}
+
+.form-group input:disabled,
+.form-group select:disabled,
+.form-group textarea:disabled {
+  background-color: #f9fafb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  border-color: #e5e7eb;
+}
+
+.form-group.error input,
+.form-group.error select,
+.form-group.error textarea {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.form-group .error-message {
+  color: #ef4444;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
 }
 
 /* Button styles */
@@ -1462,4 +1910,104 @@ body {
   transition: box-shadow 0.15s ease-in-out;
 }
 
-/* Existing sidebar styles... */
+/* ==========================================
+   STRAY JSX CHARACTER MASKING
+   ========================================== */
+/* Hide any stray ")}" characters that might render due to JSX syntax issues */
+.page {
+  position: relative;
+}
+
+/* Target text nodes that contain only ")}" */
+.page::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Hide specific patterns that might appear as stray text */
+.page > div:empty:after {
+  display: none !important;
+}
+
+/* Generic utility to hide malformed JSX artifacts */
+.jsx-artifact-hide {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Target any standalone text nodes that look like JSX artifacts */
+.page *:only-child:empty::before,
+.page *:only-child:empty::after {
+  display: none !important;
+}
+
+/* Additional safety: hide any text content that's just punctuation */
+.card::before,
+.card-content::before,
+.tab-content::before {
+  content: "";
+  display: block;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Specific targeting for WorkOrderDetailPage artifacts */
+.work-order-detail .page > *:empty,
+.work-order-detail .page > div:empty {
+  display: none !important;
+}
+
+/* Hide any floating punctuation marks */
+.page > span:empty,
+.page > div:empty:not(.card):not(.btn):not(.form-group) {
+  display: none !important;
+}
+
+/* More aggressive hiding for specific JSX artifacts */
+.page-content *:not(script):not(style) {
+  position: relative;
+}
+
+/* Hide text nodes that contain only punctuation artifacts */
+.page-content *::before {
+  content: "";
+  position: absolute;
+  background: transparent;
+}
+
+/* Target elements that might contain stray JSX syntax */
+[data-jsx-artifact="true"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* CSS-only solution to hide content that matches ")}" pattern */
+.hide-jsx-artifacts {
+  font-size: 0 !important;
+  line-height: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Apply to common containers where artifacts might appear */
+.card-content > span:empty,
+.tab-content > span:empty,
+.page > span:empty {
+  font-size: 0 !important;
+  display: none !important;
+}
+
+/* Universal artifact cleanup */
+*:empty:not(input):not(textarea):not(br):not(hr):not(img):not(area):not(base):not(col):not(embed):not(link):not(meta):not(param):not(source):not(track):not(wbr) {
+  display: none !important;
+}
+/* ========================================== */
